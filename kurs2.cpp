@@ -2,7 +2,8 @@
 #include <iostream>
 
 using namespace std;
-const int MAX_HEAP_SIZE = 100;
+int CURRENT_HEAP_SIZE = 10;
+int NEW_BLOCK_SIZE = 50;
 
 template<class T>
 struct node {
@@ -10,12 +11,31 @@ struct node {
 	int next, prev;
 };
 
-node<int> heap[MAX_HEAP_SIZE]; // change heap type here first
+node<int>* heap; // change heap type here first
 
 int stack_pointer;
 
+template<class T>
+void realloc() {
+	int temp = CURRENT_HEAP_SIZE * 2;
+	node<T>* newmem = new node<T>[temp];
+	for (int i = 0; i < CURRENT_HEAP_SIZE; i++) {
+		newmem[i] = heap[i];
+	}
+	for (int i = CURRENT_HEAP_SIZE; i < temp; i++) {
+		newmem[i].info = 0;
+		newmem[i].next = -1;
+		newmem[i].prev = stack_pointer;
+		stack_pointer = i;
+	}
+	delete[] heap;
+	heap = newmem;
+	CURRENT_HEAP_SIZE = temp;
+}
+
+template <class T>
 int heap_new() {
-	if (stack_pointer < 0) throw logic_error("free memory ended");
+	if (stack_pointer < 0) realloc<T>();
 	int a = stack_pointer;
 	stack_pointer = heap[stack_pointer].prev;
 	heap[a].next = -1;
@@ -31,26 +51,36 @@ void heap_free(int idx) {
 
 template<class T>
 void initialize_heap() {
-	for (int i = 0; i < MAX_HEAP_SIZE; i++) {
+	heap = new node<T>[CURRENT_HEAP_SIZE];
+	for (int i = 0; i < CURRENT_HEAP_SIZE; i++) {
 		heap[i].info = 0;
 		heap[i].prev = i - 1;
 		heap[i].next = -1;
 	}
-	stack_pointer = MAX_HEAP_SIZE - 1;
+	stack_pointer = CURRENT_HEAP_SIZE - 1;
 }
 
 template<class T>
 class Double_Linked_List {
-public:
+protected:
 	int head, cur;
 
+	void deletelist() {
+		cur = head;
+		while (!isEnd()) {
+			remove();
+		}
+		heap_free(cur);
+	}
+
 	void ifempty(T el) {
-		head = heap_new();
+		head = heap_new<T>();
 		cur = head;
 		heap[head].info = el;
 	}
 
 	friend istream& operator>>(istream& in, Double_Linked_List<T>& a) {
+		if (!isEmpty()) deletelist();
 		while (!in.eof()) {
 			T t;
 			in >> t;
@@ -82,13 +112,13 @@ public:
 	}
 
 	Double_Linked_List(Double_Linked_List& a) {
-		head = heap_new();
+		head = heap_new<T>();
 		cur = head;
 		int A = a.head;
 		heap[cur].info = heap[a.cur].info;
 		A = heap[A].next;
 		while (A != -1) {
-			heap[cur].next = heap_new();
+			heap[cur].next = heap_new<T>();
 			heap[heap[cur].next].prev = cur;
 			cur = heap[cur].next;
 			heap[cur].info = heap[a.cur].info;
@@ -98,14 +128,19 @@ public:
 
 	Double_Linked_List& operator=(Double_Linked_List<T>& a) {
 		if (&a == this) return *this;
-		if (a.isEmpty()) return *this;
-		head = heap_new();
+		if (a.isEmpty()) {
+			head = -1;
+			cur = -1;
+			return *this;
+		}
+		if (!isEmpty()) deletelist();
+		head = heap_new<T>();
 		cur = head;
 		int A = a.head;
 		heap[cur].info = heap[A].info;
 		A = heap[A].next;
 		while (A != -1) {
-			heap[cur].next = heap_new();
+			heap[cur].next = heap_new<T>();
 			heap[heap[cur].next].prev = cur;
 			cur = heap[cur].next;
 			heap[cur].info = heap[a.cur].info;
@@ -121,12 +156,13 @@ public:
 				cur = heap[cur].next;
 				heap_free(t);
 			}
+			heap_free(cur);
 			heap_free(head);
 		}
 	}
 
 	T& get() {
-		if(!isEmpty()) return heap[cur].info;
+		if (!isEmpty()) return heap[cur].info;
 	}
 
 	bool isEnd() const {
@@ -155,7 +191,7 @@ public:
 			return;
 		}
 		if (!isEnd()) {
-			int temp = heap_new();
+			int temp = heap_new<T>();
 			heap[temp].info = el;
 			heap[temp].next = heap[cur].next;
 			heap[temp].prev = cur;
@@ -163,7 +199,7 @@ public:
 			heap[heap[temp].next].prev = temp;
 		}
 		else {
-			int temp = heap_new();
+			int temp = heap_new<T>();
 			heap[cur].next = temp;
 			heap[temp].prev = cur;
 			heap[temp].info = el;
@@ -176,13 +212,13 @@ public:
 			return;
 		}
 		if (cur == head) {
-			head = heap_new();
+			head = heap_new<T>();
 			heap[head].next = cur;
 			heap[cur].prev = head;
 			heap[head].info = el;
 		}
 		else {
-			int temp = heap_new();
+			int temp = heap_new<T>();
 			heap[temp].info = el;
 			heap[temp].next = cur;
 			heap[temp].prev = heap[cur].prev;
@@ -239,6 +275,7 @@ class Sorted_DLL : public Double_Linked_List<T> {
 	typedef Double_Linked_List<T> DLL_;
 
 	friend istream& operator>>(istream& in, Sorted_DLL& a) {
+		if (!a.isEmpty()) a.deletelist();
 		while (!in.eof()) {
 			T t;
 			in >> t;
@@ -282,6 +319,13 @@ public:
 	}
 
 	Sorted_DLL& operator=(Sorted_DLL& other) {
+		if (&other == this) return *this;
+		if (other.isEmpty()) {
+			DLL_::head = -1;
+			DLL_::cur = -1;
+			return *this;
+		}
+		if (!DLL_::isEmpty()) DLL_::deletelist();
 		int t = other.head;
 		while (t != -1) {
 			add(heap[t].info);
@@ -371,7 +415,7 @@ void task1() {
 	}
 	temp1.begin(); temp2.begin();
 	{ // temp1 - temp2
-		while (!temp1.isEnd() && !temp2.isEnd()) {
+		do {
 			if (temp1.get() < temp2.get()) {
 				l5.add(temp1.get());
 				temp1.next();
@@ -382,23 +426,19 @@ void task1() {
 			else {
 				temp1.next();
 			}
-		}
+		} while (!temp1.isEnd() && !temp2.isEnd());
 		while (!temp1.isEnd()) {
-			if (temp1.get() != temp2.get()) l5.add(temp1.get());
+			l5.add(temp1.get());
 			temp1.next();
 		}
-		while (!temp2.isEnd()) {
-			if (temp1.get() != temp2.get()) l5.add(temp1.get());
-			temp2.next();
-		}
-		if (temp1.get() == temp2.get()) l5.add(l1.get());
 	}
-	cout << temp1 << endl << temp2 << endl << l5;
+	cout << l5;
 }
 
 
 int main() {
 	initialize_heap<int>();
 	task1();
+	delete[] heap;
 	return 0;
 }

@@ -3,7 +3,6 @@
 
 using namespace std;
 int CURRENT_HEAP_SIZE = 10;
-int NEW_BLOCK_SIZE = 50;
 
 template<class T>
 struct node {
